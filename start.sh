@@ -8,7 +8,37 @@ set -eu
 # often curl the script to /tmp and expect the server files beside the home dir.
 cd "${INSTALL_DIR:-$PWD}"
 
-PORT="${SERVER_PORT:-${PORT:-10000}}"
+PORT="${SERVER_PORT:-}"
+[ -z "$PORT" ] && PORT="${SERVER_ALLOCATION_PORT:-}"
+[ -z "$PORT" ] && PORT="${LISTEN_PORT:-}"
+[ -z "$PORT" ] && PORT="${PORT:-}"
+
+# Panels like Wispbyte hand every user a different allocation, and not all eggs
+# export SERVER_PORT. Fall back to a remembered port, then ask, then default.
+if [ -z "$PORT" ] && [ -f ".port" ]; then
+  PORT=$(tr -d ' \t\r\n' < .port 2>/dev/null || true)
+fi
+
+if [ -z "$PORT" ]; then
+  if [ -t 0 ] && [ -t 1 ]; then
+    echo "[cpa] No SERVER_PORT from the panel."
+    printf '[cpa] Port to listen on [10000]: '
+    read -r PORT_IN || PORT_IN=""
+    PORT="${PORT_IN:-10000}"
+  else
+    PORT=10000
+    echo "[cpa] WARN: panel provided no port; defaulting to $PORT (set SERVER_PORT to override)"
+  fi
+fi
+
+# Validate and remember so a non-interactive restart reuses the same port.
+case "$PORT" in
+  ''|*[!0-9]*)
+    echo "[cpa] ERROR: invalid port '$PORT' (must be numeric)" >&2
+    exit 1
+    ;;
+esac
+printf '%s' "$PORT" > .port 2>/dev/null || true
 AUTH_DIR="auths"
 BIN_DIR="bin"
 mkdir -p "$BIN_DIR" "$AUTH_DIR"
