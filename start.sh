@@ -4,7 +4,9 @@
 # Idempotent: re-running only re-downloads when the version changes.
 
 set -eu
-cd "$(dirname "$0")"
+# Install into the working directory, not the script's own location. Panels
+# often curl the script to /tmp and expect the server files beside the home dir.
+cd "${INSTALL_DIR:-$PWD}"
 
 PORT="${SERVER_PORT:-${PORT:-10000}}"
 AUTH_DIR="auths"
@@ -21,6 +23,16 @@ fi
 need() { command -v "$1" >/dev/null 2>&1; }
 
 CA="$PWD/ca-certificates.crt"
+
+# If this script was piped/curled without the repo, the bundled CA is absent.
+# Minimal eggs have no system store either, which would break every HTTPS call.
+if [ ! -f "$CA" ] && [ ! -f /etc/ssl/certs/ca-certificates.crt ] && [ ! -f /etc/ssl/cert.pem ]; then
+  if command -v curl >/dev/null 2>&1; then
+    curl -fsSL --max-time 60 -o "$CA" "https://raw.githubusercontent.com/therealfreddied/cpa-pterodactyl/main/ca-certificates.crt" 2>/dev/null || true
+  elif command -v wget >/dev/null 2>&1; then
+    wget -q -O "$CA" "https://raw.githubusercontent.com/therealfreddied/cpa-pterodactyl/main/ca-certificates.crt" 2>/dev/null || true
+  fi
+fi
 
 # Alpine/minimal eggs ship busybox wget, which rejects --ca-certificate but
 # trusts the system bundle at /etc/ssl/certs automatically. Only curl gets an
