@@ -1,0 +1,6 @@
+bin/
+config.yaml
+config.example.yaml
+.apikey
+auths/
+.tmp*/
