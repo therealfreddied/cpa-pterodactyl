@@ -31,6 +31,8 @@ if [ ! -f "$CA" ] && [ ! -f /etc/ssl/certs/ca-certificates.crt ] && [ ! -f /etc/
     curl -fsSL --max-time 60 -o "$CA" "https://raw.githubusercontent.com/therealfreddied/cpa-pterodactyl/main/ca-certificates.crt" 2>/dev/null || true
   elif command -v wget >/dev/null 2>&1; then
     wget -q -O "$CA" "https://raw.githubusercontent.com/therealfreddied/cpa-pterodactyl/main/ca-certificates.crt" 2>/dev/null || true
+  elif command -v node >/dev/null 2>&1; then
+    node -e 'fetch("https://raw.githubusercontent.com/therealfreddied/cpa-pterodactyl/main/ca-certificates.crt").then(async r=>{if(!r.ok)process.exit(1);require("fs").writeFileSync(process.argv[1],Buffer.from(await r.arrayBuffer()));}).catch(()=>process.exit(1));' "$CA" 2>/dev/null || true
   fi
 fi
 
@@ -42,6 +44,28 @@ if [ -f "$CA" ] && [ ! -f /etc/ssl/certs/ca-certificates.crt ] && [ ! -f /etc/ss
   USE_CA="$CA"
 fi
 
+node_fetch() { # url dest  -- uses Node's built-in fetch, no curl/wget needed
+  node -e '
+const fs=require("fs");
+const [url,dest]=process.argv.slice(1);
+fetch(url,{redirect:"follow"}).then(async r=>{
+  if(!r.ok){console.error("HTTP "+r.status);process.exit(2);}
+  const b=Buffer.from(await r.arrayBuffer());
+  if(!b.length){console.error("empty");process.exit(3);}
+  fs.writeFileSync(dest,b);
+}).catch(e=>{console.error(e.message);process.exit(1);});
+' "$1" "$2"
+}
+
+node_get() { # url
+  node -e '
+fetch(process.argv[1],{redirect:"follow"}).then(async r=>{
+  if(!r.ok){process.exit(2);}
+  process.stdout.write(Buffer.from(await r.arrayBuffer()));
+}).catch(()=>process.exit(1));
+' "$1"
+}
+
 fetch() { # url dest
   if need curl; then
     if [ -n "$USE_CA" ]; then
@@ -52,8 +76,10 @@ fetch() { # url dest
   elif need wget; then
     # busybox-compatible invocation only
     wget -q -O "$2" "$1"
+  elif need node; then
+    node_fetch "$1" "$2"
   else
-    echo "[cpa] ERROR: need curl or wget on this host" >&2
+    echo "[cpa] ERROR: need curl, wget, or node on this host" >&2
     exit 1
   fi
 }
@@ -67,6 +93,8 @@ api_get() { # url
     fi
   elif need wget; then
     wget -q -O - "$1" 2>/dev/null
+  elif need node; then
+    node_get "$1"
   fi
 }
 
