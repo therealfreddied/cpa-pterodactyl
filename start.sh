@@ -13,6 +13,8 @@ AUTH_DIR="auths"
 BIN_DIR="bin"
 mkdir -p "$BIN_DIR" "$AUTH_DIR"
 
+CA="$PWD/ca-certificates.crt"
+
 # Only export SSL_CERT_FILE for the binary when the system has no CA store;
 # Go resolves certs from SSL_CERT_FILE first, so pointing it at our bundled copy
 # is safe and fixes outbound TLS on minimal images.
@@ -21,8 +23,6 @@ if [ ! -f /etc/ssl/certs/ca-certificates.crt ] && [ ! -f /etc/ssl/cert.pem ] && 
 fi
 
 need() { command -v "$1" >/dev/null 2>&1; }
-
-CA="$PWD/ca-certificates.crt"
 
 # If this script was piped/curled without the repo, the bundled CA is absent.
 # Minimal eggs have no system store either, which would break every HTTPS call.
